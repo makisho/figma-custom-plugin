@@ -1,11 +1,28 @@
 {
-  "name": "tv-example",
+  "name": "DDB_NL_Figma_Addon",
   "version": "1.0.0",
-  "description": "Your Figma plugin",
+  "description": "DDB Dynamic Data Aldi NL",
   "main": "code.js",
+  "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "start:dev": "tsc -p . --watch"
   },
   "author": "",
-  "license": ""
+  "license": "",
+  "dependencies": {
+    "console": "^0.7.2",
+    "figma": "^0.0.1",
+    "file-saver": "^2.0.5",
+    "install": "^0.13.0",
+    "jszip": "^3.10.0",
+    "npm": "^8.13.2",
+    "require": "^2.4.20",
+    "types": "^0.1.1"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.49.0",
+    "@types/node": "^18.0.6"
+  }
 }

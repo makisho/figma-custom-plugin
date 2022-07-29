@@ -1,77 +1,249 @@
 <!-- Plugin UI HTML -->
-<h3>TV Show Preview Tool</h3>
-<p>TV Show</p>
-<input id="tv-show" value="Golden Girls" autofocus>
+<!-- <h3></h3>
+<p>NL ALDI fs202228-W28_NAC_ES</p> -->
+<fieldset>
+  <legend>Folleto</legend>
+  <input id="inputCatalogueData" name="inputCatalogueData" placeholder="fs202228-W28_NAC_ES" class="input_field input_catalogue" value="fs202228-W28_NAC_ES">
+</fieldset>
+<fieldset>
+
+<legend>Productos</legend>
+
+<div class="buttons-section-2">
+  <input id="pid1" name="pid1" placeholder="7060" class="input_field" value="7060">
+  <button class="secondary" id="addProduct">Add</button>
+  <div id="message_info_pid" class="warning"></div>
+</div>
+<div id="holder_products">
+  <div id="holder_prod_btns"></div>
+  <div id="holder_prod_data"></div>
+</div>
+</fieldset>
 <div class="buttons">
   <div class="buttons-section-1">
-    <button class="constructive" id="create">Apply</button>
+    <button class="constructive" id="apply">Aplicar</button>
     <button class="destructive" id="cancel">Cancel</button>
   </div>
-  <div class="buttons-section-2">
-    <button class="secondary" id="random">Random</button>
-  </div>
+  <button class="constructive" id="export">Exportar Newsletter</button>
 </div>
 <div>
-  <p>Supported layer names: #ShowName, #ShowDescription, #Genre1, #Genre2, #RunTime, #Status, #Rating, #CoverImage</p>
+  <!-- <p>Supported layer names: #ShowName, #ShowDescription, #Genre1, #Genre2, #RunTime, #Status, #Rating, #CoverImage</p> -->
 </div>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.js" integrity="sha512-B+gr+zLWg81qxVwvtYwKrmjvQtZKD/GGFF7jD80OfzbqFw+NsbS5faEqpCO7Q7oRw1bYi0+WLJf54j8Vm7NADw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- Plugin UI Javscript -->
+
 <script>
-  const randomShow = () => {
-    const randomShows = [
-      "Friends",
-      "Lost",
-      "Big Bang Theory",
-      "Succession",
-      "Stranger Things",
-      "Foundation",
-      "Curb your enthusiasm",
-      "Seinfeld",
-      "Squid game",
-      "Sopranos",
-      "Westworld",
-      "True Detective",
-      "Deadwood",
-      "Star Trek",
-      "Black Mirror",
-      "The Office",
-      "Parks and Recreation"
-    ]
-    return randomShows[Math.round((randomShows.length - 1) * Math.random())]
+
+window.onmessage = msg => {
+  if (!event.data.pluginMessage) return
+  if(msg.data.pluginMessage.type==="generateZIP"){
+    generateZIP(msg.data.pluginMessage.data)
+  }
+}
+
+const PrdBtnsList = [];
+var layerMap = {};
+var catalogue;
+
+ document.getElementById("apply").onclick = () => {
+  window.parent.postMessage({ pluginMessage: { type: "populateComponent", data: layerMap } }, "*")
+  loadImage(layerMap["#ProductImage"],"#CoverImage")
+ }
+
+ document.getElementById("export").onclick = () => {
+  var zip = new JSZip();
+  window.parent.postMessage({ pluginMessage: { type: "exportNewsletter" } }, "*")
+ }
+
+  document.getElementById("addProduct").onclick = () => {
+    getProductData(document.getElementById("pid1").value,true);
+    
   }
 
-  document.getElementById("create").onclick = () => {
-    initiatePopulation(document.getElementById("tv-show").value)
+  document.getElementById("pid1").onfocus = () => {
+    cleanErrorPid();
   }
 
-  document.getElementById('random').onclick = () => {
-    const show = randomShow()
-    document.getElementById("tv-show").value = show
-    initiatePopulation(show)
+  document.getElementById('cancel').onclick = () => {
+    const pluginMessage = { type: "cancel" }
+    parent.postMessage({ pluginMessage: pluginMessage }, "*")
   }
 
-  const initiatePopulation = query => {
-    fetch(`https://api.tvmaze.com/search/shows?q=${query}`)
+  const addProductToList = (pid) => {
+     
+      resetBtnProducts();
+ 
+      console.log('Add Product id:',pid);
+      var element = document.createElement("button");
+      element.value = pid; 
+      element.data = pid; 
+      element.innerHTML = pid; 
+      element.classList.remove('destructive');
+      element.classList.add('constructive');
+      element.onclick = () => {
+        resetBtnProducts(element);
+        getProductData(element.data,false);
+      }
+      var foo = document.getElementById("holder_prod_btns");
+      foo.appendChild(element);
+      PrdBtnsList.push(element)
+    
+  }
+
+  const resetBtnProducts = (item) => {
+    //console.log('resetBtnProducts ',item)
+    for(var i=0;i<PrdBtnsList.length;i++){
+          PrdBtnsList[i].classList.remove('constructive');
+          PrdBtnsList[i].classList.add('destructive');
+      }
+      if(item!=undefined){
+        item.classList.remove('destructive');
+        item.classList.add('constructive');
+      };
+  }
+
+  const getProductData = (query,newProduct) => {
+
+    console.log("getProductData ",query,newProduct)
+    catalogue = document.getElementById("inputCatalogueData").value;
+    fetch(`https://aldi.ddb.es/proxy/ETR-NL-Product-Data/get-productdata-by-asset-id.php?asset=${catalogue}&pid=${query}`)
       .then(response => {
         response.json().then(results => {
-          const show = results[0].show
-          const layerMap = {
-            "#ShowName": show.name,
-            "#ShowDescription": show.summary.replace(/<[^>]*>?/gm, ""),
-            "#Genre1": show.genres[0],
-            "#Genre2": show.genres[1],
-            "#RunTime": `${show.averageRuntime}m`,
-            "#Status": show.status,
-            "#Rating": show.rating.average ? show.rating.average.toString() : "-",
-            "#CoverImage": show.image.medium
+          const data = results[0];
+          
+          if (data===undefined){
+            displayErrorPid('ID de producto no válido');
+            return;
+          } 
+          
+          var p_marca       
+          ,p_normalized  
+          ,pa_normalized 
+          ,p_split       
+          ,p_enteros     
+          ,p_decimales   
+          ,p_discount    
+          ,p_desc_folleto
+          ,p_image = '';
+
+         
+         
+          try{p_marca         = data.marca;}catch(e){};
+          try{p_normalized    = data.precio_producto.replaceAll('.', ',');}catch(e){};
+          try{pa_normalized   = data.precio_anterior.replaceAll('.', ',');}catch(e){};
+          try{p_split         = p_normalized.split(",")}catch(e){};
+          try{p_enteros       = p_split[0];}catch(e){};
+          try{p_decimales     = ","+p_split[1];}catch(e){};
+          try{p_discount      = "-"+Number(data.porcentaje_de_descuento)+"%";}catch(e){};
+          try{p_desc_folleto  = data.descripcion_folleto.replaceAll('\r', '');}catch(e){};
+          try{p_image         = "https://aldi.ddb.es/proxy/ETR-NL-Product-Data/demo-245b45013b73e27e448e72231f24.png"}catch(e){};
+
+          layerMap = {
+            "#Pid": data.id,
+            "#Marca": p_marca,
+            "#NombreProducto":data.nombre_producto,
+            "#DescripcionFolleto":p_desc_folleto,
+            "#MARCA+DescripcionFolleto":p_marca+' / '+p_desc_folleto,
+            "#MARCA+PesoProd+UnidPeso": p_marca+' / '+data.peso_de_producto+' '+data.Unidad_de_peso,
+            "#Precio":p_normalized,
+            "#PrecioEntero":p_enteros,
+            "#PrecioDecimales":p_decimales,
+            "#PrecioAnterior":pa_normalized,
+            "#Descuento":p_discount,
+            "#PesoProd+UnidPeso":data.peso_de_producto+' '+data.Unidad_de_peso,
+            "#UnidadPesoCalculado":data.unidad_del_peso_calculado,
+            "#PesoProducto":data.peso_de_producto,
+            "#UnidadPesoCalculado":data.unidad_del_peso_calculado,
+            "#UnidadVenta":data.unidad_de_venta,
+            "#UnidadPeso":data.Unidad_de_peso,
+            "#PrecioAnteriorCalculado":data.precio_anterior_calculado,
+            "#ProductImage":p_image
+            // "#ShowDescription": data.summary.replace(/<[^>]*>?/gm, ""),
+            // "#Genre1": data.genres[0],
+            // "#Genre2": data.genres[1],
+            // "#RunTime": `${data.averageRuntime}m`,
+            // "#Status": data.status,
+            // "#Rating": data.rating.average ? data.rating.average.toString() : "-",
+            // "#CoverImage": data.image.medium
           }
-          window.parent.postMessage({ pluginMessage: { type: "populateShow", data: layerMap } }, "*")
-          loadImage(layerMap["#CoverImage"], "#CoverImage")
+
+          if(newProduct)addProductToList(data.id);
+          displayProductInfo(layerMap);
+
+
+
         });
+        
       })
   }
 
+  const  displayProductInfo = (obj) => {
+
+      cleanErrorPid();
+
+      var holder_pdata = document.getElementById('holder_prod_data');
+    
+      holder_pdata.innerHTML = '';
+
+      var tr = "<ul>";
+      tr += "<li><img src='"+obj["#ProductImage"]+"' width='50px' height='50px'></img>";
+      tr += "<li>#ProductID : <span class='prod_info'>" + obj["#Pid"]+ "</span></li>";
+      tr += "<li>#Marca : <span class='prod_info'>" + obj["#Marca"]+ "</span></li>";
+      tr += "<li>#NombreProducto : <span class='prod_info'>" + obj["#NombreProducto"]+ "</span></li>";
+      tr += "<li>#DescripcionFolleto : <span class='prod_info'>" + obj["#DescripcionFolleto"]+ "</span></li>";
+      tr += "<li>#Precio : <span class='prod_info'>" + obj["#Precio"]+ "</span></li>";
+      tr += "<li>#Descuento : <span class='prod_info'>" + obj["#Descuento"]+ "</span></li>";
+      tr += "<li>#PrecioAnterior : <span class='prod_info'>" + obj["#PrecioAnterior"]+ "</span></li>";
+      tr += "<li>#UnidadVenta : <span class='prod_info'>" + obj["#UnidadVenta"]+ "</span></li>";
+      tr += "<li>#UnidadPesoCalculado : <span class='prod_info'>" + obj["#UnidadPesoCalculado"]+ "</span></li>";
+      tr += "<li>#PesoProducto : <span class='prod_info'>" + obj["#PesoProducto"]+ "</span></li>";
+      tr += "<li>#UnidadPeso : <span class='prod_info'>" + obj["#UnidadPeso"]+ "</span></li>";
+      tr += "<li>#PrecioAnteriorCalculado : <span class='prod_info'>" + obj["#PrecioAnteriorCalculado"]+ "</span></li>";
+      tr += "<li class='delete_prod'><span class='prod_info delete_prod warning'><a href='#' onclick='deletePid("+ obj["#Pid"]+")' class='warning'>[X] Eliminar</a></span></li>";
+      holder_pdata.innerHTML += tr;
+      holder_pdata.innerHTML += '</ul>'
+
+      var error_list = holder_pdata.getElementsByTagName('span');
+
+      for(var i=0;i<error_list.length;i++){
+          if(error_list[i].innerHTML==undefined || error_list[i].innerHTML==null || error_list[i].innerHTML=="undefined" || error_list[i].innerHTML=="null"){
+            error_list[i].classList.add('warning');
+          }
+      }
+
+  }
+
+  const deletePid = (pid) =>{
+    //console.log("deletePid ",pid)
+    for(var i=0;i<PrdBtnsList.length;i++){
+      //console.log(PrdBtnsList[i].value,pid)
+        if( PrdBtnsList[i].value==pid && PrdBtnsList[i].classList.contains('constructive') ){
+           displayErrorPid('Eliminado Product ID '+PrdBtnsList[i].value)
+           PrdBtnsList[i].remove();
+           document.getElementById('holder_prod_data').innerHTML = '';
+           //PrdBtnsList.splice(i);
+           resetBtnProducts(PrdBtnsList[i])
+           return;
+        }
+      }
+
+
+  }
+  
+  const displayErrorPid = (e) =>{
+
+        document.getElementById('message_info_pid').innerHTML = e;  //'ID de producto no válido';
+        setTimeout(cleanErrorPid,4000)
+       
+  }
+
+  const cleanErrorPid = () =>{
+    document.getElementById('message_info_pid').innerHTML = '';
+  }
+
   const loadImage = (imageUrl, layerName) => {
+    console.log('IMAGE START LOAD')
     fetch(imageUrl)
       .then(response => response.blob())
       .then(
@@ -83,7 +255,7 @@
           })
       )
       .then(imageBytes => {
-        const pluginMessage = {
+           const pluginMessage = {
           type: "populateImage",
           data: {
             imageBytes: imageBytes,
@@ -94,10 +266,19 @@
       });
   }
 
-  document.getElementById('cancel').onclick = () => {
-    const pluginMessage = { type: "cancel" }
-    parent.postMessage({ pluginMessage: pluginMessage }, "*")
-  }
+  const generateZIP = (imagedata) => {
+
+  var zip = new JSZip();
+  zip.file("Hello.txt", "Hello World\n");
+
+  var img = zip.folder("images");
+  img.file("smile.gif", imagedata, {base64: true});
+
+  zip.generateAsync({type:"blob"}).then(function(content) {
+      saveAs(content, 'NL_'+catalogue+".zip");
+  });
+}
+
 </script>
 
 <!-- Plugin UI styles -->
@@ -120,12 +301,65 @@
     letter-spacing: 0.5px;
   }
 
+  label{
+    font-size: 12px;
+  }
+
+  fieldset{
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    font-size: 12px;
+  }
+
   input {
     padding: 8px 4px;
-    margin: 8px 0px;
+    margin: 0 0 8px;
     border-radius: 2px;
     border: 1px solid rgba(0, 0, 0, 0.2);
+    width: 25%;
+  }
+
+  ul {
+    list-style-type: none;
+    margin: 10px;
+    padding: 0;
+    line-height: 18px;
+}
+
+  .prod_info{
+    font-weight: bold;
+  }
+
+  .warning{
+    color:#f16464;
+    text-decoration: none;
+  }
+
+  .delete_prod{
+    font-weight: bold;
+    text-align: right;
+  }
+
+  #message_info_pid{
     width: 100%;
+    max-height: 30px;
+    text-align: center;
+    /* padding: 10px; */
+    background-color: #f16464;
+    color: white;
+    font-weight: bold;
+    margin-bottom: 10px;
+    line-height: 30px;
+  }
+
+  .input_catalogue{
+    width: 100%;
+    display: inline;
+  }
+
+  .output_field{
+    width: 60%;
+    display: inline;
+    border: 0 solid rgba(0, 0, 0, 0.2);
   }
 
   button {
@@ -135,11 +369,14 @@
     background-color: black;
     color: white;
     border-radius: 16px;
+    margin-right: 5px;
+    margin-bottom: 5px;
   }
 
   button.destructive {
     color: black;
-    background-color: transparent;
+    background-color: #f1f1f1;
+  
   }
 
   button.secondary {
